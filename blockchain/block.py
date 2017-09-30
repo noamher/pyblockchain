@@ -148,6 +148,7 @@ class TransactionInput(object):
         'txn_out_id',
         'signature_script',
         'seq_no',
+        'witness_stack_items'
     ]
 
     def __init__(
@@ -156,6 +157,7 @@ class TransactionInput(object):
             txn_out_id: int,
             signature_script: bytes,
             seq_no: int,
+            witness_stack_itesm: Sequence[bytes]=None,
     ):
         """
         :param previous_hash: The previous outpoint being spent.
@@ -170,6 +172,7 @@ class TransactionInput(object):
         self.txn_out_id = txn_out_id
         self.signature_script = signature_script
         self.seq_no = seq_no
+        self.witness_stack_items = witness_stack_itesm
 
     @property
     def is_coinbase(self):
@@ -327,14 +330,30 @@ class Transaction(object):
             txn_index: int,
             offset: int,
     ):
-        initial_offset = offset
+        import io
+        raw_tx_no_witness = io.BytesIO()
+
         version_fmt = '<I'
         version, = struct.unpack_from(version_fmt, data, offset=offset)
+        raw_tx_no_witness.write(data[offset:offset + struct.calcsize(version_fmt)])
         offset += struct.calcsize(version_fmt)
 
         # Input transactions
+        prev_offset = offset
         txn_input_count, offset = varint(data, offset=offset)
 
+        # Partial support for Witness
+        flags = 0
+        if txn_input_count == 0:
+            flags_format = 'B'  # unsigned char
+            flags, = struct.unpack_from(flags_format, data, offset=offset)
+            offset += struct.calcsize(flags_format)
+            if flags != 0:
+                # flags exist - read input count again since previously read input count was a dummy
+                txn_input_count, offset = varint(data, offset=offset)
+        raw_tx_no_witness.write(data[prev_offset + (0 if not flags else 2):offset])
+
+        prev_offset = offset
         txn_input_list = []
         for i in range(txn_input_count):
             txn_input, offset = TransactionInput.from_binary_data(
@@ -345,7 +364,6 @@ class Transaction(object):
 
         # Output transactions
         txn_output_count, offset = varint(data, offset=offset)
-
         txn_output_list = []
         for i in range(txn_output_count):
             txn_output, offset = TransactionOutput.from_binary_data(
@@ -353,17 +371,31 @@ class Transaction(object):
                 offset=offset,
             )
             txn_output_list.append(txn_output)
+        raw_tx_no_witness.write(data[prev_offset:offset])
+
+        # Read the witness stacks
+        if flags != 0:
+            for i in range(txn_input_count):
+                amount, offset = varint(data, offset=offset)
+                txn_input_list[i].witness_stack_items = []
+                for j in range(amount):
+                    stack_item_size, offset = varint(data, offset=offset)
+                    stack_item_fmt = '<{}s'.format(stack_item_size)
+                    stack_item, = struct.unpack_from(stack_item_fmt, data, offset=offset)
+                    offset += struct.calcsize(stack_item_fmt)
+                    txn_input_list[i].witness_stack_items.append(stack_item)
 
         lock_time_fmt = '<I'
         lock_time, = struct.unpack_from(version_fmt, data, offset=offset)
+        raw_tx_no_witness.write(data[offset:offset + struct.calcsize(version_fmt)])
         offset += struct.calcsize(lock_time_fmt)
         # TODO: hash should be calculated inside txn_hash method
-        tx_hash = hashlib.sha256(
-            hashlib.sha256(data[initial_offset:offset]).digest()
+        tx_no_witness_hash = hashlib.sha256(
+            hashlib.sha256(raw_tx_no_witness.getbuffer()).digest()
         ).digest()
 
         transaction = cls(version, txn_input_list, txn_output_list,
-                          lock_time, tx_hash)
+                          lock_time, tx_no_witness_hash)
         return transaction, offset
 
 
