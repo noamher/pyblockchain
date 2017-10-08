@@ -38,13 +38,15 @@ def test_tx_no_witness(txn_no_witness):
     assert txn.version == 1
     assert all(inp.witness_stack_items is None for inp in txn.inputs)
     assert txn.txn_hash == '8af1c511ec4ac9891e70a550ec3e176c68358f69821a1bd9356f4c57ea8474ab'
+    assert txn.flags is None
 
 
 def test_tx_with_witness(txn_with_witness):
-    tx, _ = Transaction.from_binary_data(txn_with_witness, 0, 0)
-    assert tx.version == 1
-    assert len(tx.inputs[0].witness_stack_items) == 2
-    assert [wsi.hex() for wsi in tx.inputs[0].witness_stack_items] == [
+    txn, _ = Transaction.from_binary_data(txn_with_witness, 0, 0)
+    assert txn.version == 1
+    assert len(txn.inputs[0].witness_stack_items) == 2
+    assert [wsi.hex() for wsi in txn.inputs[0].witness_stack_items] == [
         '3044022038421164c6468c63dc7bf724aa9d48d8e5abe3935564d38182addf733ad4cd81022076362326b22dd7bfaf211d5b17220723659e4fe3359740ced5762d0e497b7dcc01',
         '21038262a6c6cec93c2d3ecd6c6072efea86d02ff8e3328bbd0242b20af3425990acac']
-    assert tx.txn_hash == '954f43dbb30ad8024981c07d1f5eb6c9fd461e2cf1760dd1283f052af746fc88'
+    assert txn.txn_hash == '954f43dbb30ad8024981c07d1f5eb6c9fd461e2cf1760dd1283f052af746fc88'
+    assert txn.flags == 1

@@ -290,7 +290,7 @@ class Transaction(object):
     https://bitcoin.org/en/developer-reference#raw-transaction-format
 
     """
-    __slots__ = ['version', 'inputs', 'outputs', 'lock_timestamp', '_txn_hash']
+    __slots__ = ['version', 'inputs', 'outputs', 'lock_timestamp', '_txn_hash', 'flags']
 
     def __init__(
             self,
@@ -299,6 +299,7 @@ class Transaction(object):
             outputs: Sequence[TransactionOutput],
             lock_timestamp: int,
             txn_hash: int,
+            flags: int=None,
     ):
         """
         :param version: Transaction version number; currently version 1.
@@ -314,6 +315,7 @@ class Transaction(object):
         self.outputs = outputs
         self.lock_timestamp = lock_timestamp
         self._txn_hash = txn_hash
+        self.flags = flags
 
     @property
     def txn_hash(self) -> str:
@@ -343,7 +345,7 @@ class Transaction(object):
         txn_input_count, offset = varint(data, offset=offset)
 
         # Partial support for Witness
-        flags = 0
+        flags = None
         if txn_input_count == 0:
             flags_format = 'B'  # unsigned char
             flags, = struct.unpack_from(flags_format, data, offset=offset)
@@ -374,7 +376,7 @@ class Transaction(object):
         raw_tx_no_witness.write(data[prev_offset:offset])
 
         # Read the witness stacks
-        if flags != 0:
+        if flags is not None:
             for i in range(txn_input_count):
                 amount, offset = varint(data, offset=offset)
                 txn_input_list[i].witness_stack_items = []
@@ -395,7 +397,7 @@ class Transaction(object):
         ).digest()
 
         transaction = cls(version, txn_input_list, txn_output_list,
-                          lock_time, tx_no_witness_hash)
+                          lock_time, tx_no_witness_hash, flags)
         return transaction, offset
 
 
