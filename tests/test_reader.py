@@ -30,3 +30,18 @@ def test_read_single_block_file(genesis_block):
             next(it)
             pytest.fail('exception should have been thrown')
         except StopIteration: pass
+
+
+def test_read_single_block_file_with_zero_padding(genesis_block):
+    with NamedTemporaryFile() as block_file:
+        block_file.write(genesis_block)
+        block_file.write(b'\x00' * 500)
+        block_file.flush()
+        import pdb; pdb.set_trace()
+        it = iter(BlockchainFileReader(block_file.name))
+        next(it)
+        try:
+            next(it)
+            pytest.fail('exception should have been thrown')
+        except StopIteration:
+            pass

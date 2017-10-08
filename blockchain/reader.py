@@ -35,7 +35,10 @@ class BlockchainFileReader(object):
                     print('Current mmap position: ', blockchain_mmap.tell())
                     print('Total mmap size: ', blockchain_mmap.size())
                     raise err
-                yield block
+                if block.total_size > 8:
+                    yield block
+                elif not any(blockchain_mview.obj):
+                    raise StopIteration
                 offset += block.total_size
                 blockchain_mmap.seek(block.total_size)
             blockchain_mmap.close()
